@@ -30,7 +30,7 @@ public class TestController {
     @SimpleRequestMapping("/doTest2")
     public void test2(HttpServletRequest request, HttpServletResponse response) {
         try {
-            response.getWriter().println("doTest2 method successfully!");
+            response.getWriter().write("doTest2 method successfully!");
         } catch (IOException e) {
             e.printStackTrace();
         }

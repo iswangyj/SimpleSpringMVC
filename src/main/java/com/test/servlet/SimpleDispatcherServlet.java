@@ -14,7 +14,7 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
-
+import java.util.Map.Entry;
 /**
  * @author wyj
  * @date 2018/9/14
@@ -47,85 +47,90 @@ public class SimpleDispatcherServlet extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        this.doPost(req,resp);
+        this.doPost(req, resp);
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         try {
             //处理请求
-            doDispatch(req,resp);
+            doDispatch(req, resp);
         } catch (Exception e) {
-            resp.getWriter().write("500!! Server Exception");
+            resp.getWriter().write("StatusCode:500, Server Exception!");
         }
 
     }
 
     private void doDispatch(HttpServletRequest request, HttpServletResponse response) throws Exception {
-        if (handlerMapping.isEmpty()) {
+        if(handlerMapping.isEmpty()){
             return;
         }
 
-        String url = request.getRequestURI();
+        String url =request.getRequestURI();
         String contextPath = request.getContextPath();
 
-        url = url.replace(contextPath, "").replaceAll("/+", "/");
+        //拼接url并把多个/替换成一个
+        url=url.replace(contextPath, "").replaceAll("/+", "/");
 
-        if (!this.handlerMapping.containsKey(url)) {
-            response.getWriter().write("HttpStatus 404, NOT FOUND!");
+        if(!this.handlerMapping.containsKey(url)){
+            response.getWriter().write("StatusCode:404, NOT FOUND!");
             return;
         }
 
-        Method method = this.handlerMapping.get(url);
+        Method method =this.handlerMapping.get(url);
 
-        // 获取方法的参数列表
+        //获取方法的参数列表
         Class<?>[] parameterTypes = method.getParameterTypes();
 
-        // 获取请求参数
+        //获取请求的参数
         Map<String, String[]> parameterMap = request.getParameterMap();
 
-        // 保存参数值
-        Object[] paramValues = new Object[parameterTypes.length];
+        //保存参数值
+        Object [] paramValues= new Object[parameterTypes.length];
 
-        // 方法的参数列表
-        for (int i = 0; i < parameterTypes.length; i++) {
-            // 根据参数名称做某些处理
+        //方法的参数列表
+        for (int i = 0; i<parameterTypes.length; i++){
+            //根据参数名称，做某些处理
             String requestParam = parameterTypes[i].getSimpleName();
 
-            if (requestParam.equals("HttpServletRequest")) {
-                // 确定参数类型，强转
-                paramValues[i] = request;
+
+            if (requestParam.equals("HttpServletRequest")){
+                //参数类型已明确，这边强转类型
+                paramValues[i]=request;
                 continue;
             }
-
-            if (requestParam.equals("HttpServletResponse")) {
-                paramValues[i] = response;
+            if (requestParam.equals("HttpServletResponse")){
+                paramValues[i]=response;
                 continue;
             }
-
-            if (requestParam.equals("String")) {
-                for (Map.Entry<String, String[]> param : parameterMap.entrySet()) {
-                    String value = Arrays.toString(param.getValue())
-                            .replaceAll("\\[|\\]", "")
-                            .replaceAll(",\\s", ",");
-                    paramValues[i] = value;
+            if(requestParam.equals("String")){
+                for (Entry<String, String[]> param : parameterMap.entrySet()) {
+                    String value =Arrays.toString(param.getValue()).replaceAll("\\[|\\]", "").replaceAll(",\\s", ",");
+                    paramValues[i]=value;
                 }
             }
-
-            // 利用反射机制调用
-            try {
-                // 第一个参数是method所对应的实例，在ioc容器中
-                method.invoke(this.controllerMap.get(url), paramValues);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
         }
-
+        //利用反射机制来调用
+        try {
+            method.invoke(this.controllerMap.get(url), paramValues);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void doLoadConfig(String location) {
+
+        // 对location参数进行处理
+        if (location.startsWith("classpath:")) {
+            location = location.replace("classpath:", "");
+        } else if (location.contains("/")) {
+            int lastSplitIndex = location.lastIndexOf('/');
+            location = location.substring(lastSplitIndex + 1, location.length());
+        }
+
         // web.xml文件中的contextConfigLoacation对应的value值加载到流
         InputStream resourceAsStream = this.getClass().getClassLoader().getResourceAsStream(location);
+
 
         try {
             // 加载（.properties）文件内容
@@ -145,7 +150,7 @@ public class SimpleDispatcherServlet extends HttpServlet {
 
     private void doScanner(String packageName) {
         // 将"."替换成"/"
-        URL url = this.getClass().getResource("/"+packageName.replaceAll("\\.", "/"));
+        URL url = this.getClass().getResource("/" + packageName.replaceAll("\\.", "/"));
         File dir = new File(url.getFile());
         for (File file : dir.listFiles()) {
             if (file.isDirectory()) {
@@ -208,6 +213,7 @@ public class SimpleDispatcherServlet extends HttpServlet {
                     handlerMapping.put(url, method);
                     controllerMap.put(url, clazz.newInstance());
                     System.out.println(url + "," + method);
+
                 }
             }
         } catch (Exception e) {
